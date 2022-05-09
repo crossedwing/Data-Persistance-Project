@@ -3,20 +3,30 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using System.IO;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 public class MainManager : MonoBehaviour
 {
+    public static MainManager instance;
+
     public Brick BrickPrefab;
     public int LineCount = 6;
     public Rigidbody Ball;
 
     public Text ScoreText;
+    public Text highScoreText;
     public GameObject GameOverText;
     
     private bool m_Started = false;
     private int m_Points;
+    private int c_High_Score;
     
     private bool m_GameOver = false;
+
+    private string playerName;
 
     
     // Start is called before the first frame update
@@ -24,8 +34,10 @@ public class MainManager : MonoBehaviour
     {
         const float step = 0.6f;
         int perLine = Mathf.FloorToInt(4.0f / step);
-        
-        int[] pointCountArray = new [] {1,1,2,2,5,5};
+
+        playerName = NameKeeper.instance.playerName;
+
+        int[] pointCountArray = new[] { 1, 1, 2, 2, 5, 5 };
         for (int i = 0; i < LineCount; ++i)
         {
             for (int x = 0; x < perLine; ++x)
@@ -36,6 +48,11 @@ public class MainManager : MonoBehaviour
                 brick.onDestroyed.AddListener(AddPoint);
             }
         }
+        NameSaver currentLeader = GetHighScore();
+
+        c_High_Score = currentLeader.score;
+
+        highScoreText.text = "Best Score: " + currentLeader.playerName + ": " + currentLeader.score;
     }
 
     private void Update()
@@ -59,8 +76,17 @@ public class MainManager : MonoBehaviour
             {
                 SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
             }
+            else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+#if UNITY_EDITOR
+                    EditorApplication.ExitPlaymode();
+#else
+        Application.Quit();
+#endif
+            }
         }
     }
+
 
     void AddPoint(int point)
     {
@@ -72,5 +98,43 @@ public class MainManager : MonoBehaviour
     {
         m_GameOver = true;
         GameOverText.SetActive(true);
+        if (m_Points > c_High_Score)
+        {
+            SetHighScore();
+        }
+    }
+
+    [System.Serializable]
+    public class NameSaver
+    {
+        public string playerName;
+        public int score;
+    }
+    public void SetHighScore()
+    {
+        NameSaver player = new NameSaver();
+        player.playerName = playerName;
+        player.score = m_Points;
+
+        string json = JsonUtility.ToJson(player);
+
+        File.WriteAllText(Application.persistentDataPath + "/savefile.json", json);
+    }
+    public NameSaver GetHighScore()
+    {
+        string path = Application.persistentDataPath + "/savefile.json";
+        if (File.Exists(path))
+        {
+            string json = File.ReadAllText(path);
+            NameSaver currentLeader = JsonUtility.FromJson<NameSaver>(json);
+            return currentLeader;
+        }
+        else
+        {
+            NameSaver currentLeader = new NameSaver();
+            currentLeader.playerName = "";
+            currentLeader.score = 0;
+            return currentLeader;
+        }
     }
 }
